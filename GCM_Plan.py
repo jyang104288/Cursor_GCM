@@ -7,9 +7,6 @@ import time
 import requests
 import datetime
 
-# change 1. 
-
-
 # Configure logging
 logging.basicConfig(filename='debug.log', level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
