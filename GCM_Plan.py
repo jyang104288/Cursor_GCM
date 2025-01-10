@@ -7,6 +7,8 @@ import time
 import requests
 import datetime
 
+# this is a test to see if github is working
+
 # Configure logging
 logging.basicConfig(filename='debug.log', level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
