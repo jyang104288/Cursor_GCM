@@ -200,9 +200,17 @@ class LLMRequest:
         
         # Project Overview
         doc.add_heading('Project Overview', level=1)
-        overview_prompt = f"""As a product compliance manager, provide a concise project overview for a cooktop product targeting {self.country1} and {self.country2} markets.
-        Focus on shared requirements and key differences based on this regulatory data:
-        {regulatory_data[['Regulation_Category', self.country1, self.country2]].to_string()}"""
+        overview_prompt = f"""Create a professional project overview for a cooktop product compliance plan targeting {self.country1} and {self.country2} markets.
+Base your response on this regulatory data, organizing by regulatory categories:
+
+{regulatory_data.groupby('Regulation_Category').apply(lambda x: f"\nCategory: {x.name}\n" + x[[self.country1, self.country2, 'Attribute_Name']].to_string()).to_string()}
+
+Format guidelines:
+1. Begin with a clear objective statement
+2. For each regulatory category, provide a separate paragraph summarizing key requirements
+3. Use professional business language
+4. Avoid special characters or bullet points
+5. Highlight market-specific requirements within each category's paragraph"""
         
         overview_response = self.call_api([{
             "role": "user",
@@ -210,66 +218,45 @@ class LLMRequest:
         }])
         doc.add_paragraph(overview_response['choices'][0]['message']['content'])
         
-        # Certification Requirements
-        doc.add_heading('Certification Requirements', level=1)
-        cert_prompt = f"""Based on this regulatory data for {self.country1} and {self.country2}:
-        {regulatory_data[regulatory_data['Regulation_Category'].str.contains('Certification|Standard', case=False)].to_string()}
-        
-        List the following:
-        1. Primary certifications required
-        2. Most efficient certification path
-        3. Validity periods
-        4. Any country-specific requirements"""
-        
-        cert_response = self.call_api([{
-            "role": "user",
-            "content": cert_prompt
-        }])
-        doc.add_paragraph(cert_response['choices'][0]['message']['content'])
-        
-        # Testing Strategy
-        doc.add_heading('Testing Strategy', level=1)
-        testing_prompt = f"""Based on the standards and requirements for {self.country1} and {self.country2}:
-        {regulatory_data[regulatory_data['Regulation_Category'].str.contains('Test|Standard|Safety', case=False)].to_string()}
-        
-        Create a consolidated testing plan including:
-        1. Required safety testing
-        2. EMC testing requirements
-        3. Testing optimization strategies
-        4. Laboratory requirements
-        5. Test report acceptability"""
-        
-        testing_response = self.call_api([{
-            "role": "user",
-            "content": testing_prompt
-        }])
-        doc.add_paragraph(testing_response['choices'][0]['message']['content'])
-        
-        # Documentation Requirements
-        doc.add_heading('Documentation Requirements', level=1)
-        doc_prompt = f"""Based on documentation requirements for {self.country1} and {self.country2}:
-        {regulatory_data[regulatory_data['Regulation_Category'].str.contains('Document|Manual|Label', case=False)].to_string()}
-        
-        Detail the documentation requirements for:
-        1. Technical File contents
-        2. Compliance documentation
-        3. User documentation and language requirements
-        4. Labeling requirements"""
-        
-        doc_response = self.call_api([{
-            "role": "user",
-            "content": doc_prompt
-        }])
-        doc.add_paragraph(doc_response['choices'][0]['message']['content'])
+        # Process each regulatory category separately
+        for category in unique_categories:
+            doc.add_heading(f'{category} Requirements', level=1)
+            
+            # Filter data for this category
+            category_data = regulatory_data[regulatory_data['Regulation_Category'] == category]
+            
+            category_prompt = f"""Provide a detailed analysis of {category} requirements for cooktop products in {self.country1} and {self.country2} markets.
+
+Data for this category:
+{category_data[[self.country1, self.country2, 'Attribute_Name', 'Regulation_Subcategory']].to_string()}
+
+Format guidelines:
+1. Begin with an overview of {category} requirements
+2. Address each attribute/subcategory separately in clear paragraphs
+3. Compare requirements between {self.country1} and {self.country2}
+4. Highlight any specific standards, regulations, or authorities mentioned
+5. Use professional business language without special characters
+6. Include any specific testing, certification, or documentation requirements related to this category"""
+            
+            category_response = self.call_api([{
+                "role": "user",
+                "content": category_prompt
+            }])
+            doc.add_paragraph(category_response['choices'][0]['message']['content'])
         
         # Implementation Timeline
         doc.add_heading('Implementation Timeline', level=1)
-        timeline_prompt = f"""Create a detailed implementation timeline for achieving compliance in {self.country1} and {self.country2}, including:
-        1. Pre-certification phase
-        2. Certification phase
-        3. Production phase
-        4. Estimated duration for each phase
-        5. Key milestones and dependencies"""
+        timeline_prompt = f"""Create a professional implementation timeline for achieving compliance across all regulatory categories in {self.country1} and {self.country2} markets.
+
+Categories to consider:
+{unique_categories.tolist()}
+
+Format guidelines:
+1. Begin with an overview of the complete implementation process
+2. Create separate phases for different regulatory categories
+3. Include estimated durations for each phase
+4. Specify dependencies between different categories
+5. Use professional business language without special characters"""
         
         timeline_response = self.call_api([{
             "role": "user",
@@ -279,11 +266,17 @@ class LLMRequest:
         
         # Cost Optimization Strategy
         doc.add_heading('Cost Optimization Strategy', level=1)
-        cost_prompt = f"""Suggest cost optimization strategies for compliance in {self.country1} and {self.country2}, considering:
-        1. Certification efficiency
-        2. Testing efficiency
-        3. Documentation efficiency
-        4. Resource optimization"""
+        cost_prompt = f"""Develop a cost optimization strategy for compliance across all regulatory categories in {self.country1} and {self.country2} markets.
+
+Categories to consider:
+{unique_categories.tolist()}
+
+Format guidelines:
+1. Begin with an overall cost optimization approach
+2. Address each regulatory category's specific cost considerations
+3. Identify opportunities for shared resources across categories
+4. Suggest efficiency measures for each category
+5. Use professional business language without special characters"""
         
         cost_response = self.call_api([{
             "role": "user",
@@ -293,11 +286,17 @@ class LLMRequest:
         
         # Risk Mitigation
         doc.add_heading('Risk Mitigation', level=1)
-        risk_prompt = f"""Outline a risk mitigation strategy for maintaining compliance in {self.country1} and {self.country2}, including:
-        1. Certificate validity management
-        2. Compliance monitoring
-        3. Documentation control
-        4. Quality system maintenance"""
+        risk_prompt = f"""Outline a comprehensive risk mitigation strategy across all regulatory categories for {self.country1} and {self.country2} markets.
+
+Categories to consider:
+{unique_categories.tolist()}
+
+Format guidelines:
+1. Begin with an overall risk management approach
+2. Address specific risks for each regulatory category
+3. Include monitoring and control measures by category
+4. Suggest mitigation strategies for each identified risk
+5. Use professional business language without special characters"""
         
         risk_response = self.call_api([{
             "role": "user",
