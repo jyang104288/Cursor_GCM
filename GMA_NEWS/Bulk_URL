@@ -1,0 +1,198 @@
+import os
+import openpyxl
+from groq import Groq
+import requests
+from bs4 import BeautifulSoup
+
+# Set the API Key as an Environment Variable (otherwise groq doesn't like it)
+os.environ['GROQ_API_KEY'] = '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'
+
+# Chatbot Setup
+client = Groq(
+    api_key=os.environ.get("GROQ_API_KEY"),
+)
+
+# File Paths
+file_path = r"C:\Users\104288\UL Solutions\GMA - Global Market Access - AI POC\GMA News\Input\Raw_Data_1.xlsx"
+
+# Load the workbook and select the sheets
+wb = openpyxl.load_workbook(file_path, data_only=True)
+
+# Check if the 'sourceURL' sheet exists
+if 'sourceURL' not in wb.sheetnames:
+    raise ValueError("The 'sourceURL' sheet does not exist in the workbook.")
+
+source_url = wb['sourceURL']  # Load the sourceURL sheet
+
+# Print the headers found in the sourceURL sheet
+print("Headers in sourceURL sheet:", [cell.value for cell in source_url[1]])
+
+# Find the header indices for the sourceURL sheet
+source_headers = {cell.value.strip().lower(): idx for idx, cell in enumerate(source_url[1]) if cell.value is not None}
+item_id_col_index = source_headers.get('itemid')  # Lowercase
+link_col_index = source_headers.get('link')  # Lowercase
+extractable_url_col_index = source_headers.get('extractableurl')  # Keep as is
+
+# Check if required columns are found
+if item_id_col_index is None or link_col_index is None or extractable_url_col_index is None:
+    raise ValueError("Required columns not found in the sourceURL sheet.")
+
+# Function to extract attributes from the link
+def extract_attribute_from_link(link):
+    # Implement your logic to extract attributes from the link
+    # For example, you might want to scrape the link or call an API
+    # Here, we'll just return a placeholder value for demonstration
+    return "Extracted Attribute"  # Replace with actual extraction logic
+
+# Define the output directory
+output_directory = r"C:\\Users\\104288\\UL Solutions\\GMA - Global Market Access - AI POC\\GMA News\\Output"
+
+# Ensure the output directory exists
+if not os.path.exists(output_directory):
+    os.makedirs(output_directory)
+
+# Print items where extractableURL is "Yes" and extract attributes
+print("Extracting attributes for items with extractableURL = 'Yes':")
+for row in source_url.iter_rows(min_row=2, values_only=True):
+    extractable_url = row[extractable_url_col_index]  # Get the value of extractableURL
+    
+    # Skip processing if extractableURL is "No"
+    if extractable_url and extractable_url.lower() == 'no':
+        print(f"Skipping ItemID {row[item_id_col_index]} as extractableURL is 'No'.")
+        continue
+
+    if extractable_url and extractable_url.lower() == 'yes':  # Check if it's "Yes"
+        item_id = row[item_id_col_index]  # Get ItemID
+        link = row[link_col_index]  # Get Link
+        
+        # Extract the attribute using the link
+        attribute = extract_attribute_from_link(link)  # Replace with your extraction logic
+
+        # Check if attribute is None
+        if attribute is None:
+            print(f"Warning: Attribute is None for ItemID {item_id}. Skipping LLM request.")
+            continue
+
+        # Create a new workbook for each ItemID
+        output_wb = openpyxl.Workbook()
+        output_ws = output_wb.active
+        output_ws.title = "LLM Responses"
+        
+        # Write headers to the new workbook
+        output_ws.append(["FinalPrompt", "LLM Answers"])  # Updated headers
+
+        # Prepare the prompt for the LLM
+        formatted_prompt = (
+            f"As a product regulatory compliance officer, please review the information in this '{link}' "
+            f"Extract information related to the attribute '{attribute}' "
+            f"that specifically impacts the product."
+        )
+
+        # Check if the formatted prompt is valid
+        if not formatted_prompt.strip():
+            print(f"Warning: Formatted prompt is empty for ItemID {item_id}. Skipping LLM request.")
+            continue
+
+        # Print the formatted prompt before sending it to the LLM
+        print(f"Sending to LLM:\n{formatted_prompt}\n")
+
+        # Get the response from the LLM
+        try:
+            chat_completion = client.chat.completions.create(
+                messages=[{
+                    "role": "user",
+                    "content": formatted_prompt,
+                }],
+                model="llama3-8b-8192",
+            )
+            
+            answer = chat_completion.choices[0].message.content.strip()
+            
+            # Print the response received from the LLM
+            print(f"Received response:\n{answer}\n")
+
+            # Save the prompt and response to the new output workbook
+            output_ws.append([formatted_prompt, answer])  # Store in the new columns
+
+        except Exception as e:
+            print(f"Error during LLM request: {e}")
+
+        # Save the new workbook for the current ItemID
+        output_file_path = os.path.join(output_directory, f"{item_id}_LLM_Responses.xlsx")
+        output_wb.save(output_file_path)
+        print(f"Saved responses for ItemID {item_id} to {output_file_path}")
+
+# Load the Output sheet
+if 'Output' not in wb.sheetnames:
+    raise ValueError("The 'Output' sheet does not exist in the workbook.")
+
+output_sheet = wb['Output']  # Load the Output sheet
+
+# Find the header indices for the Output sheet
+output_headers = {cell.value: idx for idx, cell in enumerate(output_sheet[1]) if cell.value is not None}
+
+# Check if required columns are found
+llm_prompt_col_index = output_headers.get('LLM Prompt')  # Keep as is
+response_col_index = output_headers.get('AI Generated Answer')  # Keep as is
+attribute_col_index = output_headers.get('Attribute')  # Keep as is
+prompt_col_index = output_headers.get('Prompt')  # Keep as is
+
+if llm_prompt_col_index is None or response_col_index is None or attribute_col_index is None or prompt_col_index is None:
+    raise ValueError("Required columns not found in the Output sheet.")
+
+# Print items where extractableURL is "Yes" and extract attributes
+print("Extracting attributes for items with extractableURL = 'Yes':")
+for output_row in output_sheet.iter_rows(min_row=2, values_only=True):
+    attribute = output_row[attribute_col_index]  # Get Attribute
+    prompt = output_row[prompt_col_index]  # Get Prompt
+
+    # Find the corresponding URL in the sourceURL sheet
+    url = None
+    for source_row in source_url.iter_rows(min_row=2, values_only=True):
+        extractable_url = source_row[extractable_url_col_index]  # Get the value of extractableURL
+        if extractable_url and extractable_url == 'Yes':  # Check if it's "Yes"
+            link = source_row[link_col_index]  # Get Link
+            # Assuming you want to use the first matching link
+            url = link
+            break
+
+    if url is None:
+        print("No URL found for the corresponding ItemID. Skipping.")
+        continue
+
+    # Prepare the prompt for the LLM
+    formatted_prompt = (
+        f"As a product regulatory compliance officer, please review the information in this '{url}' "
+        f"Extract information related to the attribute '{attribute}' "
+        f"that specifically impacts the product. "
+        f"Based on the information in this '{url}', {prompt}."
+    )
+
+    # Print the formatted prompt before sending it to the LLM
+    print(f"Sending to LLM:\n{formatted_prompt}\n")
+
+    # Get the response from the LLM
+    try:
+        chat_completion = client.chat.completions.create(
+            messages=[{
+                "role": "user",
+                "content": formatted_prompt,
+            }],
+            model="llama3-8b-8192",
+        )
+        
+        answer = chat_completion.choices[0].message.content.strip()
+        
+        # Print the response received from the LLM
+        print(f"Received response:\n{answer}\n")
+
+        # Save the prompt and response to the output sheet
+        output_sheet.cell(row=output_row[0].row, column=llm_prompt_col_index, value=formatted_prompt)
+        output_sheet.cell(row=output_row[0].row, column=response_col_index, value=answer)
+
+    except Exception as e:
+        print(f"Error during LLM request: {e}")
+
+# Save the updated workbook
+wb.save(file_path)
+print("Done Processing")

@@ -1,0 +1,157 @@
+import os
+import pandas as pd
+from transformers import AutoTokenizer, AutoModel
+import torch
+from groq import Groq  # Ensure you have the Groq library installed
+from openpyxl import load_workbook
+from openpyxl.styles import Alignment
+import re
+from datetime import datetime
+
+# Set the API Key as an Environment Variable
+os.environ['GROQ_API_KEY'] = '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'  # Replace with your actual API key
+
+# Set USER_AGENT environment variable
+os.environ['USER_AGENT'] = 'GMA_News_AI_Research_Tool/1.0'
+
+# Chatbot Setup
+client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+
+# Load the model and tokenizer
+model_name = "sentence-transformers/all-MiniLM-L6-v2"
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+model = AutoModel.from_pretrained(model_name)
+
+# Function to calculate similarity using LLM
+def calculate_similarity_llm(ai_answer, expert_answer):
+    if not isinstance(ai_answer, str) or not isinstance(expert_answer, str):
+        return None
+
+    inputs = tokenizer([ai_answer, expert_answer], padding=True, truncation=True, return_tensors='pt')
+    with torch.no_grad():
+        embeddings = model(**inputs).last_hidden_state.mean(dim=1)
+
+    cosine_similarity = torch.nn.functional.cosine_similarity(embeddings[0], embeddings[1], dim=0)
+    return cosine_similarity.item()
+
+# Function to classify similarity
+def classify_similarity_llm(similarity):
+    if similarity is None:
+        return 'unknown'
+    elif similarity > 0.9:
+        return 'same'
+    elif similarity > 0.5:
+        return 'partially different'
+    else:
+        return 'different'
+
+# Function to extract and normalize dates from a string
+def extract_and_normalize_date(text):
+    if not isinstance(text, str):
+        text = str(text)  # Convert to string if it's not already
+
+    # Define a regex pattern for various date formats
+    date_patterns = [
+        r'\b\d{4}-\d{2}-\d{2}\b',  # YYYY-MM-DD
+        r'\b\d{1,2}/\d{1,2}/\d{4}\b',  # MM/DD/YYYY
+        r'\b\d{1,2}/\d{1,2}/\d{2}\b',  # MM/DD/YY
+        r'\b\d{1,2}-\d{1,2}-\d{4}\b',  # MM-DD-YYYY
+        r'\b\d{1,2}-\d{1,2}-\d{2}\b'   # MM-DD-YY
+    ]
+    
+    for pattern in date_patterns:
+        match = re.search(pattern, text)
+        if match:
+            date_str = match.group(0)
+            # Normalize the date format
+            try:
+                if '-' in date_str:
+                    normalized_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+                else:
+                    normalized_date = datetime.strptime(date_str, '%m/%d/%Y').date()
+                return normalized_date
+            except ValueError:
+                continue  # If parsing fails, try the next pattern
+    return None  # Return None if no date is found
+
+# Function to compare two answers based on date
+def compare_dates(ai_answer, expert_answer):
+    ai_date = extract_and_normalize_date(ai_answer)
+    expert_date = extract_and_normalize_date(expert_answer)
+    
+    if ai_date and expert_date:
+        return ai_date == expert_date  # Returns True if dates are the same
+    return False  # Returns False if either date is None
+
+# Function to generate comparison explanation using Groq
+def generate_comparison(ai_answer, expert_answer, attribute):
+    if attribute in ["Publish Date", "Effective Date", "Mandatory Date"]:
+        # Use date comparison logic
+        if compare_dates(ai_answer, expert_answer):
+            return "Same"
+        else:
+            return "Different"  # Or any other logic you want for different dates
+    else:
+        # General comparison for other attributes
+        prompt = (
+            f"Compare the following two answers:\n\n"
+            f"AI Answer: {ai_answer}\n"
+            f"Expert Answer: {expert_answer}\n\n"
+            f"Explain what's common and what's different between the two answers."
+        )
+        
+        # Call the Groq API to get the response
+        response = client.chat.completions.create(
+            messages=[
+                {"role": "user", "content": prompt}
+            ],
+            model="llama3-8b-8192"  # Adjust the model as necessary
+        )
+        
+        # Extract the response text
+        comparison_result = response.choices[0].message.content
+        return comparison_result
+
+# Load your data from all Excel files in the specified directory
+input_directory = r'C:\Users\104288\UL Solutions\GMA - Global Market Access - AI POC\GMA News\Bulk_URL\Output\AI_Compare'
+output_directory = input_directory  # Set output directory to the same as input
+
+all_files = [f for f in os.listdir(input_directory) if f.endswith('.xlsx')]
+
+for file in all_files:
+    input_file = os.path.join(input_directory, file)
+    df = pd.read_excel(input_file)
+
+    # Calculate similarity and classify
+    df['LLM Similarity'] = df.apply(lambda row: calculate_similarity_llm(row['AI Generated Answer'], row['Expert Answers']), axis=1)
+    df['AI Evaluation'] = df['LLM Similarity'].apply(classify_similarity_llm)
+
+    # Generate explanations for each row based on the attribute
+    df['Comparison Explanation'] = df.apply(
+        lambda row: generate_comparison(row['AI Generated Answer'], row['Expert Answers'], row['Attribute']), 
+        axis=1
+    )
+
+    # Update AI Evaluation and LLM Similarity based on Comparison Explanation
+    df.loc[df['Comparison Explanation'] == 'Same', 'AI Evaluation'] = 'same'
+    df.loc[df['Comparison Explanation'] == 'Different', 'LLM Similarity'] = 0.0
+    df.loc[df['Comparison Explanation'] == 'Same', 'LLM Similarity'] = 1.0
+
+    # Save the updated DataFrame to a new Excel file in the same directory
+    output_file = os.path.join(output_directory, f'Compared_{file}')
+    df.to_excel(output_file, index=False)
+
+    # Load the workbook and set text wrapping
+    wb = load_workbook(output_file)
+    ws = wb.active
+
+    # Set text wrapping for each column
+    for column in ws.columns:
+        for cell in column:
+            cell.alignment = Alignment(wrap_text=True)
+
+    # Save the workbook with the updated formatting
+    wb.save(output_file)
+
+    # Print completion message for each file
+    print(f"Processing complete! The updated DataFrame has been saved to: {output_file}")

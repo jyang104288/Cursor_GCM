@@ -1,0 +1,28 @@
+import pandas as pd
+import os
+import glob
+
+# Define the folder path
+folder_path = r"C:\Users\104288\UL Solutions\GMA - Global Market Access - AI POC\GMA News\Bulk_URL\Output\AI_Compare"
+# Create a list to hold DataFrames
+dataframes = []
+
+# Find all files starting with "Compared"
+for file in glob.glob(os.path.join(folder_path, "Compared_*.xlsx")):  # Assuming the files are in Excel format
+    # Extract the NEWS ID from the filename
+    news_id = file.split("Compared_")[1].split("_")[0]
+    
+    # Read the first sheet of the file into a DataFrame
+    df = pd.read_excel(file, sheet_name=0)  # Read the first sheet
+    
+    # Add the NEWS ID column
+    df.insert(0, 'NEWS ID', news_id)
+    
+    # Append the DataFrame to the list
+    dataframes.append(df)
+
+# Concatenate all DataFrames into one
+consolidated_df = pd.concat(dataframes, ignore_index=True)
+
+# Save the consolidated DataFrame to a new Excel file in the same folder
+consolidated_df.to_excel(os.path.join(folder_path, "Consolidated_Compared_Data.xlsx"), index=False)

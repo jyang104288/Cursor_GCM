@@ -1,0 +1,38 @@
+import os
+import pandas as pd
+from docx import Document
+
+# Define the folder path
+folder_path = r"C:\Users\104288\UL Solutions\GMA - Global Market Access - AI POC\GMA News\Bulk_URL\Output\CENELEC"
+
+# Iterate through all Excel files in the folder
+for filename in os.listdir(folder_path):
+    if filename.endswith('.xlsx') or filename.endswith('.xls'):
+        file_path = os.path.join(folder_path, filename)
+        
+        # Read the Excel file
+        df = pd.read_excel(file_path)
+        
+        # Check if 'Feedback' column exists
+        if 'Feedback' in df.columns:
+            # Iterate through each row in the DataFrame
+            for index, row in df.iterrows():
+                attribute = row['Attribute']  # Assuming there's a column named 'Attribute'
+                feedback = row['Feedback']
+                
+                # Create a new Word document for each attribute if it doesn't exist
+                output_file_path = os.path.join(folder_path, f'{attribute}.docx')
+                if not os.path.exists(output_file_path):
+                    doc = Document()
+                    doc.add_heading(f'Feedback for {attribute}', level=1)
+                else:
+                    doc = Document(output_file_path)  # Open existing document
+                
+                # Add feedback to the document
+                doc.add_paragraph(str(feedback))  # Ensure feedback is a string
+                doc.add_page_break()  # Separate feedback entries
+
+                # Save the document
+                doc.save(output_file_path)
+
+print("Feedback consolidated into separate documents for each attribute.")

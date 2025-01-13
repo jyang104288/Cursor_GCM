@@ -1,0 +1,38 @@
+import pandas as pd
+from urllib.parse import urlparse
+import warnings
+
+# Suppress warnings
+warnings.filterwarnings("ignore")
+
+# Load the Excel file
+file_path = r"C:\Users\104288\UL Solutions\GMA - Global Market Access - AI POC\GMA News\News Raw Data.xlsx"
+xls = pd.ExcelFile(file_path)
+
+# Read the sheets into DataFrames
+raw_data_df = pd.read_excel(xls, sheet_name='RAW DATA')
+valid_url_df = pd.read_excel(xls, sheet_name='Good')  # Ensure this matches the sheet name exactly
+
+# Print the columns of valid_url_df to check the actual names
+print("Good DataFrame columns:", valid_url_df.columns)
+
+# Use the actual column name 'URL' from valid_url_df
+actual_column_name = 'URL'  # Column in Good tab
+sources_column_name = 'Link'  # Column in RAW DATA tab
+valid_column_name = 'Valid'  # Column to update in RAW DATA
+
+# Extract the main addresses from the Good tab, handling NaN values
+valid_urls = valid_url_df[actual_column_name].dropna().apply(lambda x: urlparse(x).netloc if isinstance(x, str) else '').unique()
+
+# Function to check if the main address is in the valid URLs
+def check_url(url):
+    if isinstance(url, str) and url:  # Check if the url is a non-empty string
+        main_address = urlparse(url).netloc
+        return "Yes" if main_address in valid_urls else "No"
+    return "No"  # Return "No" if url is not a string or is NaN
+
+# Apply the function to the Sources column and store the result in the Valid column
+raw_data_df[valid_column_name] = raw_data_df[sources_column_name].apply(check_url)
+
+# Save the updated DataFrame back to the Excel file
+raw_data_df.to_excel(file_path, sheet_name='RAW DATA', index=False)
