@@ -6,6 +6,7 @@ import requests
 from bs4 import BeautifulSoup
 import tkinter as tk
 from tkinter import messagebox, scrolledtext
+import pandas as pd
 
 # Suppress warnings
 warnings.filterwarnings('ignore')
@@ -173,3 +174,28 @@ accuracy_entry.grid(row=5, column=1, padx=10)
 
 # Start the GUI event loop
 root.mainloop()
+
+def read_input_file(file_path):
+    # Assuming the input file is a CSV
+    data = pd.read_csv(file_path)
+    return data
+
+def form_prompt(data):
+    # Logic to form the prompt based on the data
+    prompts = []
+    for index, row in data.iterrows():
+        # Example: Create a prompt based on a specific column
+        prompt = f"Analyze the following: {row['attribute_column']}"  # Adjust as needed
+        prompts.append(prompt)
+    return prompts
+
+def process_url(url):
+    # Logic to process the URL and retrieve information
+    response = requests.get(url)
+    if response.status_code == 200:
+        soup = BeautifulSoup(response.content, 'html.parser')
+        # Extract relevant information from the soup object
+        # Example: title = soup.title.string
+        return soup.title.string  # Adjust based on what you need
+    else:
+        return None
