@@ -6,6 +6,9 @@ import { useToast } from "@/components/ui/use-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Save } from "lucide-react";
+import { saveAs } from 'file-saver';
+import * as XLSX from 'xlsx';
 
 const attributes = [
   "Title", "Summary", "Affected Products", "Summary Details", 
@@ -17,6 +20,9 @@ export default function Index() {
   const [topic, setTopic] = useState("");
   const [url, setUrl] = useState("");
   const [analysisResults, setAnalysisResults] = useState({});
+  const [expertAnalysis, setExpertAnalysis] = useState({});
+  const [feedback, setFeedback] = useState({});
+  const [accuracy, setAccuracy] = useState({});
   const { toast } = useToast();
 
   const handleSubmit = async () => {
@@ -62,6 +68,43 @@ export default function Index() {
     setTopic("");
     setUrl("");
     setAnalysisResults({});
+  };
+
+  const handleSave = () => {
+    const fileName = prompt("Please enter the file name:", "analysis_results.xlsx");
+    if (!fileName) {
+      toast({
+        title: "Error",
+        description: "File name is required.",
+        variant: "destructive",
+      });
+      return; // Exit if no file name is provided
+    }
+
+    // Prepare data for the Excel file
+    const data = attributes.map(attr => ({
+      Attribute: attr,
+      Prompt: analysisResults[attr]?.prompt || '',
+      AI_Output: analysisResults[attr]?.ai_output || '',
+      Expert_Analysis: expertAnalysis[attr] || '',
+      Feedback: feedback[attr] || '',
+      Accuracy: accuracy[attr] || '',
+    }));
+
+    // Create a new workbook and a worksheet
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Analysis Results');
+
+    // Generate buffer and save the file
+    const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+    const blob = new Blob([excelBuffer], { type: 'application/octet-stream' });
+    saveAs(blob, fileName); // Save the file with the user-defined name
+
+    toast({
+      title: "Success",
+      description: `Analysis results saved successfully as ${fileName}.`,
+    });
   };
 
   return (
@@ -121,7 +164,7 @@ export default function Index() {
       </Card>
 
       {/* Analysis Results Section */}
-      <Card className="glass-card">
+      <Card className="glass-card mb-8">
         <CardHeader>
           <CardTitle>Analysis Results</CardTitle>
         </CardHeader>
@@ -168,31 +211,30 @@ export default function Index() {
                     </div>
                     
                     <div className="space-y-2">
-                      <label className="text-sm font-medium">Expert Analysis</label>
+                      <label className="text-sm font-medium">Expert Analysis for {attr}</label>
                       <Textarea
-                        placeholder="Expert analysis will appear here"
+                        placeholder="Enter expert analysis"
+                        value={expertAnalysis[attr] || ''}
+                        onChange={(e) => setExpertAnalysis({ ...expertAnalysis, [attr]: e.target.value })}
                         className="h-32 input-field"
                       />
-                    </div>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium">Feedback</label>
-                        <Input
-                          placeholder="Enter feedback"
-                          className="input-field"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium">Accuracy (%)</label>
-                        <Input
-                          type="number"
-                          min="0"
-                          max="100"
-                          placeholder="Enter accuracy"
-                          className="input-field"
-                        />
-                      </div>
+                      <label className="text-sm font-medium">Feedback</label>
+                      <Input
+                        placeholder="Enter feedback"
+                        value={feedback[attr] || ''}
+                        onChange={(e) => setFeedback({ ...feedback, [attr]: e.target.value })}
+                        className="input-field"
+                      />
+                      <label className="text-sm font-medium">Accuracy (%)</label>
+                      <Input
+                        type="number"
+                        min="0"
+                        max="100"
+                        placeholder="Enter accuracy"
+                        value={accuracy[attr] || ''}
+                        onChange={(e) => setAccuracy({ ...accuracy, [attr]: e.target.value })}
+                        className="input-field"
+                      />
                     </div>
                   </CardContent>
                 </Card>
@@ -201,6 +243,18 @@ export default function Index() {
           </Tabs>
         </CardContent>
       </Card>
+
+      {/* Save Button */}
+      <div className="flex justify-end">
+        <Button
+          onClick={handleSave}
+          className="button-hover"
+          variant="default"
+        >
+          <Save className="mr-2" />
+          Save Results
+        </Button>
+      </div>
     </div>
   );
 }
