@@ -16,9 +16,10 @@ const attributes = [
 export default function Index() {
   const [topic, setTopic] = useState("");
   const [url, setUrl] = useState("");
+  const [analysisResults, setAnalysisResults] = useState({});
   const { toast } = useToast();
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!topic || !url) {
       toast({
         title: "Validation Error",
@@ -27,16 +28,40 @@ export default function Index() {
       });
       return;
     }
-    
+
     toast({
       title: "Processing",
       description: "Analyzing content...",
     });
+
+    try {
+      const response = await fetch("http://127.0.0.1:5000/process", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ topic, url }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Network response was not ok");
+      }
+
+      const data = await response.json();
+      setAnalysisResults(data);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
   };
 
   const handleClear = () => {
     setTopic("");
     setUrl("");
+    setAnalysisResults({});
   };
 
   return (
@@ -129,6 +154,7 @@ export default function Index() {
                         placeholder="AI prompt will appear here"
                         className="h-24 input-field bg-muted/50"
                         readOnly
+                        value={analysisResults[attr]?.prompt || ""}
                       />
                     </div>
                     
@@ -137,6 +163,7 @@ export default function Index() {
                       <Textarea
                         placeholder="AI analysis will appear here"
                         className="h-32 input-field"
+                        value={analysisResults[attr]?.ai_output || ""}
                       />
                     </div>
                     

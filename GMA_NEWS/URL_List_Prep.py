@@ -5,13 +5,16 @@ import requests  # Import requests to fetch HTML content
 
 def extract_home_site_address():
     # Load the Excel file
-    file_path = r"C:\Users\104288\UL Solutions\GMA - Global Market Access - AI POC\Raw_Data_1.xlsx"
+    file_path = r"C:\Users\104288\UL Solutions\GMA - Global Market Access - AI POC\GMA News\SourceData\2025_News_Source.xlsx"
     # Read all sheets into a dictionary of DataFrames
     all_sheets = pd.read_excel(file_path, sheet_name=None)
     
     # Access the specific sheets you want to modify
     df_source = all_sheets['sourceURL']
     df_valid = all_sheets['valid']  # Assuming 'valid' is the name of the tab with valid URLs
+
+    # Check available columns in df_source
+    print("Available columns in df_source:", df_source.columns.tolist())  # Debugging line to check columns
 
     # Initialize lists to store extracted URLs and announce text
     extracted_urls = []
@@ -22,7 +25,7 @@ def extract_home_site_address():
     valid_urls = [url.lower().rstrip('/') for url in df_valid['valid_url'].tolist()]  # Normalize valid URLs
 
     # Iterate through the 'link' column for existing URLs
-    for html_content in df_source['link']:
+    for html_content in df_source['Link']:
         # Convert to string and handle NaN values
         html_str = str(html_content) if pd.notna(html_content) else ""
         

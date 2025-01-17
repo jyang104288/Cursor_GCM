@@ -1,0 +1,120 @@
+# Project Summary:
+# This script automates the process of scraping regulatory information from specified URLs
+# and generating AI-driven compliance summaries based on user-defined prompts.
+#
+# Key Use Cases:
+# 1. **URL Processing**: Reads URLs and associated item IDs from an Excel file to initiate scraping.
+# 2. **Content Scraping**: Utilizes BeautifulSoup to extract text content from the provided URLs.
+# 3. **AI Prompt Generation**: Constructs specific prompts for the AI model based on regulatory attributes and user input.
+# 4. **AI Response Handling**: Sends prompts to the Groq API to receive AI-generated compliance summaries.
+# 5. **Excel Output**: Writes the generated prompts and AI responses back to an Excel sheet for record-keeping.
+#
+# Business Value:
+# - Streamlines the regulatory research process, saving time and reducing manual effort.
+# - Provides accurate and concise summaries that aid in compliance decision-making.
+# - Enhances productivity by automating repetitive tasks associated with regulatory data collection.
+
+
+
+
+import os
+import openpyxl
+from groq import Groq
+import re
+from datetime import datetime
+import requests
+from bs4 import BeautifulSoup
+
+# Set the API Key as an Environment Variable (otherwise groq doesn't like it)
+os.environ['GROQ_API_KEY'] = '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'
+
+# Chatbot Setup
+client = Groq(
+    api_key=os.environ.get("GROQ_API_KEY"),
+)
+
+# File Paths
+# EDIT THIS PATH <<===========
+file_path = r"C:\Users\104288\UL Solutions\GMA - Global Market Access - AI POC\GMA News\Input\Raw_Data_1.xlsx"
+
+# Load the workbook and select the sheets
+wb = openpyxl.load_workbook(file_path, data_only=True)
+variable = wb['Variable']
+
+def get_text_content(url):
+    try:
+        response = requests.get(url)
+        soup = BeautifulSoup(response.text, 'html.parser')
+        return soup.get_text()
+    except:
+        return ""
+
+# Iterate through variable
+for row_index, row in enumerate(variable.iter_rows(min_row=2, values_only=True), start=2):
+    # Make sure the row is not empty
+    if not row[0] or not row[1]:
+        continue
+    url = row[0]
+    itemid = row[1]
+
+    # EDIT THIS PATH <<===========
+    output_path = r"C:\Users\104288\UL Solutions\GMA - Global Market Access - AI POC\GMA News\Bulk_URL\Output\{}_Output.xlsx".format(itemid)
+
+    # ASSUMING THE TAB IS NAMED AFTER THE SUBCATEGORY (for example, wb['Waste and Recycling'])
+    sheet = wb['Output']
+    llm_prompt_column = 'LLM Prompt'
+    response_column = 'AI Generated Answer'
+
+    # Find which index corresponds to the response columns
+    response_col_index = None
+    llm_prompt_col_index = None
+    header_row = 1
+    for col_idx, cell in enumerate(sheet[header_row], start=1):
+        if cell.value == response_column:
+            response_col_index = col_idx
+        if cell.value == llm_prompt_column:
+            llm_prompt_col_index = col_idx
+
+    if not response_col_index or not llm_prompt_col_index:
+        raise ValueError(f"Required columns {llm_prompt_column} and {response_column} not found.")
+
+    # Iterate through sheet rows:
+    for row_2_index, row_2 in enumerate(sheet.iter_rows(min_row=2, values_only=True), start=2):
+        if not row_2[0]:
+            continue
+        attribute = row_2[2]
+        prompt = row_2[3]
+
+        # Scrape the URL text
+        content_text = get_text_content(url)
+
+        formatted_prompt = (
+            f"As a product regulatory compliance officer, please review the information in this '{url}' "
+            f"Extract information related to the attribute '{attribute}' "
+            f"that specifically impacts the product. "
+            f"Based on the information in this '{url}', {prompt}. "
+            "Be concise with the answer. Use bullets, but do not leave space between lines. Keep simple easy to read format. avoid providing duplicate information. Only use the information that is published by the official regulatory authority for the country or state. The summary should be based on the latest regulation."
+        )
+
+        print(f"Row: {row_2_index} with Prompt: {formatted_prompt}")
+
+        # Get the response from the LLM
+        chat_completion = client.chat.completions.create(
+            messages=[
+                {
+                    "role": "user",
+                    "content": formatted_prompt + f"\nText content: {content_text[:20000]}...",
+                }
+            ],
+            model="llama3-8b-8192",
+        )
+        answer = chat_completion.choices[0].message.content.strip()
+        print(answer)
+        sheet.cell(row=row_2_index, column=llm_prompt_col_index, value=formatted_prompt)
+        sheet.cell(row=row_2_index, column=response_col_index, value=answer)
+
+    # Save the updated workbook with the GMA News ID-specific name
+    wb.save(output_path)
+    print(f"Saved to file at {output_path}")
+
+print("Done Processing")
