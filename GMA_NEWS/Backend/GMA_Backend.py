@@ -3,45 +3,24 @@ import warnings
 import openpyxl
 from groq import Groq
 from datetime import datetime
-import ipywidgets as widgets
-from IPython.display import display, HTML, clear_output
-import pandas as pd
-from openpyxl import Workbook
-from openpyxl.styles import Font
-import os
-from datetime import datetime
-from tkinter import filedialog
-import tkinter as tk
 import requests
 from bs4 import BeautifulSoup
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+from urllib.parse import urlparse
 
 # Suppress warnings
 warnings.filterwarnings('ignore')
 
 # Set the API Key as an Environment Variable
-#os.environ['GROQ_API_KEY'] = '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'
-
 os.environ['GROQ_API_KEY'] = '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'
-
-
-
-# Set USER_AGENT environment variable
 os.environ['USER_AGENT'] = 'GMA_News_AI_Research_Tool/1.0'
 
 # Chatbot Setup
 client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
 # File Paths
-file_path = r"C:\Users\104288\UL Solutions\GMA - Global Market Access - AI POC\GMA News\Input\GMA_News_URL_Input_EUR-Lex.xlsx"
-#save_path = r"C:\Users\104288\cursor-tutor\Cursor_GCM\GMA_NEWS"
-
-
-# = r"C:\Users\104288\UL Solutions\GMA - Global Market Access - AI POC\GMA News\Output"
-# Load the workbook and select the sheets
-wb = openpyxl.load_workbook(file_path, data_only=True)
-output_sheet = wb['Output']
+news_source_list_path = r"C:\Users\104288\UL Solutions\GMA - Global Market Access - AI POC\GMA News\Input\News_Source_List.xlsx"
 
 # List of attributes
 attributes = [
@@ -50,28 +29,46 @@ attributes = [
     "Mandatory Date", "Consultation Closing"
 ]
 
-def display_topic_info( topic, url):
-    info = f'<b>Processing Topic:</b> {topic}<br>'
-   
-    if url:
-        info += f'<b>URL:</b> {url}<br>'
-    display(HTML(info + '<br>'))
+def extract_domain(url):
+    parsed_url = urlparse(url)
+    return parsed_url.netloc
+
+def validate_url(url):
+    domain = extract_domain(url)
+    
+    # Load the News Source List to check for the domain
+    wb = openpyxl.load_workbook(news_source_list_path, data_only=True)
+    sheet = wb.active
+    
+    # Check if the domain is in the first column
+    for row in sheet.iter_rows(min_row=2, values_only=True):
+        if row[0] == domain:
+            return domain  # Domain is valid
+    
+    return None  # Domain not found
+
+# Define a function to get the file path dynamically
+def get_file_path(domain_name):
+    static_path = r"C:\Users\104288\UL Solutions\GMA - Global Market Access - AI POC\GMA News\Input\\"
+    # Format the domain name to match the desired file name structure
+    formatted_domain_name = f"GMA_News_URL_Input_{domain_name}.xlsx"
+    return f"{static_path}{formatted_domain_name}"
 
 def get_text_content(url):
     response = requests.get(url)
     soup = BeautifulSoup(response.text, 'html.parser')
     return soup.get_text()
 
-
-def get_text_content(url):
-    response = requests.get(url)
-    soup = BeautifulSoup(response.text, 'html.parser')
-    return soup.get_text()
-
-def process_url(topic, url):
+def process_url(topic, url, matched_file_name):
     attribute_outputs = {}  # Initialize the dictionary to store prompts and responses
 
     try:
+        # Load the workbook and select the sheets using the dynamic file_path
+        file_path = get_file_path(matched_file_name)  # Use the matched_file_name
+        print(f"Attempting to load workbook from: {file_path}")  # Debugging line
+        wb = openpyxl.load_workbook(file_path, data_only=True)
+        output_sheet = wb['Output']
+
         # Get URL content
         text_content = get_text_content(url)
         if not text_content:
@@ -131,21 +128,6 @@ def process_url(topic, url):
 app = Flask(__name__)
 CORS(app)
 
-# Initialize the Groq client
-client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
-
-# Load the workbook and select the sheets
-wb = openpyxl.load_workbook(file_path, data_only=True)
-output_sheet = wb['Output']
-
-# List of attributes
-attributes = [
-    "Title", "Summary", "Affected Products", "Summary Details", "Conformity Assessment",
-    "Marking Requirement", "Technical Requirement", "Publish Date", "Effective Date",
-    "Mandatory Date", "Consultation Closing"
-]
-
-
 @app.route('/process', methods=['POST'])
 def process_request():
     data = request.json
@@ -155,9 +137,18 @@ def process_request():
     if not topic or not url:
         return jsonify({"error": "Topic and URL are required."}), 400
 
+    # Validate the URL and extract the domain
+    domain = validate_url(url)
+    if not domain:
+        return jsonify({"error": "The URL is not validated to work with the AI Extraction."}), 400
+
+    # Correctly determine the input file based on the domain
+    matched_file_name = domain  # Use the domain directly, not prefixed
+    print(f"Matched file name: {matched_file_name}")  # Debugging line
+
     try:
         # Call the processing function
-        results = process_url(topic, url)
+        results = process_url(topic, url, matched_file_name)  # Pass topic, url, and matched_file_name
         return jsonify(results), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
