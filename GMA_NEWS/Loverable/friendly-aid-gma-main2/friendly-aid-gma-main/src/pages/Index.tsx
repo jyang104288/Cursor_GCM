@@ -160,7 +160,7 @@ export default function Index() {
     <div className="container mx-auto px-4 py-8 max-w-7xl">
       <div className="text-center mb-8">
         <h1 className="text-4xl font-bold tracking-tight mb-2 text-red-600">
-          AI Assisted Research Tool
+          GMA News AI Assisted Research Tool
         </h1>
         <div className="flex justify-start mb-4">
           <div className="bg-gray-50 border border-gray-300 rounded-lg p-4 shadow-md w-full">

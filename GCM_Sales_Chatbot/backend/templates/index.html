@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GCM Sales Assistant</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="bg-gray-100 h-screen">
+    <div class="container mx-auto px-4 h-screen flex flex-col">
+        <!-- Header -->
+        <header class="py-4">
+            <h1 class="text-2xl font-bold text-gray-800">GCM Sales Assistant</h1>
+            <p class="text-gray-600">Your AI-powered sales support companion</p>
+        </header>
+
+        <div class="flex flex-1 space-x-4 overflow-hidden">
+            <!-- Suggested Questions Sidebar -->
+            <div class="w-1/4 bg-white rounded-lg shadow-lg p-4 overflow-y-auto">
+                <h2 class="text-lg font-semibold mb-4">Suggested Questions</h2>
+                <div id="suggested-questions" class="space-y-2">
+                    <!-- Questions will be inserted here -->
+                    <div class="loading-questions">Loading suggested questions...</div>
+                </div>
+            </div>
+
+            <!-- Chat Container -->
+            <div class="flex-1 bg-white rounded-lg shadow-lg p-6 overflow-hidden flex flex-col">
+                <!-- Chat Messages -->
+                <div id="chat-messages" class="flex-1 overflow-y-auto mb-4 space-y-4">
+                    <!-- Messages will be inserted here -->
+                </div>
+
+                <!-- Input Form -->
+                <form id="chat-form" class="flex space-x-4">
+                    <input 
+                        type="text" 
+                        id="user-input" 
+                        class="flex-1 border rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500"
+                        placeholder="Type your message here..."
+                        required
+                    >
+                    <button 
+                        type="submit"
+                        class="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600 transition-colors"
+                    >
+                        Send
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html> 
